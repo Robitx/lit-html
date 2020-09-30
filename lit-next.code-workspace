@@ -9,6 +9,10 @@
 			"path": "packages/lit-element"
 		},
 		{
+			"name": "lit-ssr",
+			"path": "packages/lit-ssr"
+		},
+		{
 			"name": "tests",
 			"path": "packages/tests"
 		},
