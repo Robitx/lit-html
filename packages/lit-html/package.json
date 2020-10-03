@@ -42,6 +42,7 @@
   ],
   "scripts": {
     "build": "npm run clean && tsc && rollup -c",
+    "build:watch": "rollup -c --watch",
     "clean": "rm -rf lit-html.{js,js.map,d.ts} directives/ development/",
     "build:ts": "tsc",
     "build:ts:watch": "tsc --watch",

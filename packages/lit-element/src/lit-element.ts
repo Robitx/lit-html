@@ -144,6 +144,19 @@ export class LitElement extends UpdatingElement {
   ) => void = render;
 
   /**
+   * LitElement detects if it should try to `hydrate` based on whether or not
+   * the element has a `shadowRoot` when it is constructed.
+   * If so, we assume the `shadowRoot` contents have been server side rendered.
+   * In this case, the first update checks to see if the hydrate property is a
+   * function. If so, it is called to update the element. Otherwise, and in all
+   * subsequent updates, `render` is called to update the element.
+   */
+  static hydrate:
+      (result: unknown, container: Element|DocumentFragment) => void;
+
+  private _needsHydration?: boolean;
+
+  /**
    * Array of styles to apply to the element. The styles should be defined
    * using the [[`css`]] tag function or via constructible stylesheets.
    */
@@ -211,7 +224,9 @@ export class LitElement extends UpdatingElement {
     (this as {
       renderRoot: Element | DocumentFragment;
     }).renderRoot = this.createRenderRoot();
-    this.adoptStyles((this.constructor as typeof LitElement)._elementStyles!);
+    if (!this._needsHydration) {
+      this.adoptStyles((this.constructor as typeof LitElement)._elementStyles!);
+    }
   }
 
   /**
@@ -222,7 +237,10 @@ export class LitElement extends UpdatingElement {
    * @returns {Element|DocumentFragment} Returns a node into which to render.
    */
   protected createRenderRoot(): Element | ShadowRoot {
-    return this.attachShadow({mode: 'open'});
+    if (this.shadowRoot) {
+      this._needsHydration = true;
+    }
+    return this.shadowRoot || this.attachShadow({mode: 'open'});
   }
 
   /**
@@ -267,13 +285,20 @@ export class LitElement extends UpdatingElement {
     // before that.
     const templateResult = this.render();
     super.update(changedProperties);
+    const needsHydration = this._needsHydration;
     // If render is not implemented by the component, don't call lit-html render
     if (templateResult !== renderNotImplemented) {
-      (this.constructor as typeof LitElement).render(
+      let render = (this.constructor as typeof LitElement).render;
+      if (needsHydration &&
+          typeof (this.constructor as typeof LitElement).hydrate ===
+              'function') {
+        this._needsHydration = false;
+        render = (this.constructor as typeof LitElement).hydrate;
+      render(
         templateResult,
         this.renderRoot,
-        {eventContext: this, renderBefore: this._renderBeforeNode}
-      );
+        {eventContext: this, renderBefore: this._renderBeforeNode});
+      }
     }
   }
 

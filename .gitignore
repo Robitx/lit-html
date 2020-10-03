@@ -18,3 +18,5 @@
 /packages/lit-element/demo/**/*.js.map
 
 /lerna-debug.log
+
+.DS_Store

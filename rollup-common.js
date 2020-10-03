@@ -46,17 +46,30 @@ const reservedProperties = [
   // https://github.com/Polymer/lit-html/issues/1261
   "_value",
   "_setValue",
+
+  // TODO(kschaaf) TBD: lit-ssr required "private" fields
+  "_resolveValue", // from AttributePart
 ];
 
 // Any private properties which we share between different _packages_ are
 // hard-coded here because they must never change between versions. Mangled
-// names are randomly chosen uppercase letters, in case we ever might want to
-// use lowercase letters for short, public APIs.
+// names are arbitrarily (alphabetically) assigned uppercase letters, in case we
+// ever might want to use lowercase letters for short, public APIs.
 const crossPackagePropertyMangles = {
-  _createElement: "Y",
-  _endNode: "M",
+  _createElement: "A",
+  _endNode: "B",
   _startNode: "C",
-};
+
+  // TODO(kschaaf) TBD: hydrate required "private" fields
+  _parts: "E", // from TemplateInstance, Template
+  _directive: "F", // from NodePart
+  _setEndNode: "G", // from NodePart
+  _template: "H", // from TemplateInstance
+  _constructor: "I", // from AttributePartInfo
+  _name: "J", // from AttributePartInfo
+  _strings: "K", // from AttributePartInfo
+  _commitValue: "L", // from AttributePart
+}
 
 export function litRollupConfig({ entryPoints, external = [] } = options) {
   // The Terser shared name cache allows us to mangle the names of properties

@@ -36,6 +36,7 @@
   ],
   "scripts": {
     "build": "npm run clean && tsc && rollup -c",
+    "build:watch": "rollup -c --watch",
     "clean": "rm -rf lit-element.{js,js.map,d.ts} lib/ development/",
     "dev": "scripts/dev.sh",
     "build:ts": "tsc",

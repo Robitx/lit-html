@@ -20,22 +20,22 @@ if (DEV_MODE) {
 
 // Added to an attribute name to mark the attribute as bound so we can find
 // it easily.
-const boundAttributeSuffix = '$lit$';
+export const boundAttributeSuffix = '$lit$';
 
 // This marker is used in many syntactic positions in HTML, so it must be
 // a valid element name and attribute name. We don't support dynamic names (yet)
 // but this at least ensures that the parse tree is closer to the template
 // intention.
-const marker = `lit$${String(Math.random()).slice(9)}$`;
+export const marker = `lit$${String(Math.random()).slice(9)}$`;
 
 // String used to tell if a comment is a marker comment
-const markerMatch = '?' + marker;
+export const markerMatch = '?' + marker;
 
 // Text used to insert a comment marker node. We use processing instruction
 // syntax because it's slightly smaller, but parses as a comment node.
 const nodeMarker = `<${markerMatch}>`;
 
-const d = document;
+const d = window.document;
 
 // Creates a dynamic marker. We never have to search for these in the DOM.
 const createMarker = (v = '') => d.createComment(v);
@@ -128,8 +128,8 @@ const doubleQuoteAttrEndRegex = /"/g;
 const rawTextElement = /^(?:script|style|textarea)$/i;
 
 /** TemplateResult types */
-const HTML_RESULT = 1;
-const SVG_RESULT = 2;
+export const HTML_RESULT = 1;
+export const SVG_RESULT = 2;
 
 /** TemplatePart types */
 // TODO (justinfagnani): since these are exported, consider shorter names,
@@ -202,6 +202,15 @@ export const nothing = {};
  */
 const templateCache = new Map<TemplateStringsArray, Template>();
 
+export const templateFactory = (result: TemplateResult) => {
+  const {strings} = result;
+  let template = templateCache.get(strings);
+  if (template === undefined) {
+    templateCache.set(strings, (template = new Template(result)));
+  }
+  return template;
+}
+
 export type NodePartInfo = {
   readonly type: typeof NODE_PART;
 };
@@ -239,7 +248,7 @@ export type DirectiveParameters<C extends DirectiveClass> = Parameters<
  * A generated directive function doesn't evaluate the directive, but just
  * returns a DirectiveResult object that captures the arguments.
  */
-type DirectiveResult<C extends DirectiveClass = DirectiveClass> = {
+export type DirectiveResult<C extends DirectiveClass = DirectiveClass> = {
   _$litDirective$: C;
   values: DirectiveParameters<C>;
 };
@@ -296,7 +305,7 @@ export const render = (
   part._setValue(value);
 };
 
-const walker = d.createTreeWalker(d);
+const walker = d && d.createTreeWalker(d);
 
 //
 // Classes only below here, const variable declarations only above here...
@@ -314,33 +323,26 @@ const walker = d.createTreeWalker(d);
  * change in future pre-releases.
  */
 export abstract class Directive {
+  resolve(part: Part, props: Array<unknown>): unknown {
+    return this.update(part, props);
+  }
   abstract render(...props: Array<unknown>): unknown;
   update(_part: Part, props: Array<unknown>): unknown {
     return this.render(...props);
   }
 }
 
-class Template {
-  private _strings: TemplateStringsArray;
-  _element: HTMLTemplateElement;
-  _parts: Array<TemplatePart> = [];
-
-  constructor({strings, _$litType$: type}: TemplateResult) {
-    walker.currentNode = (this._element = d.createElement('template')).content;
-
+export class Template {
+  static getHtml(strings: TemplateStringsArray, type: ResultType) {
     // Insert makers into the template HTML to represent the position of
     // bindings. The following code scans the template strings to determine the
     // syntactic position of the bindings. They can be in text position, where
     // we insert an HTML comment, attribute value position, where we insert a
     // sentinel string and re-write the attribute name, or inside a tag where
     // we insert the sentinel string.
-    const l = (this._strings = strings).length - 1;
+    const l = strings.length - 1;
     const attrNames: Array<string> = [];
     let html = type === SVG_RESULT ? '<svg>' : '';
-    let node: Node | null;
-    let nodeIndex = 0;
-    let bindingIndex = 0;
-    let attrNameIndex = 0;
 
     // When we're inside a raw text tag (not it's text content), the regex
     // will still be tagRegex so we can find attributes, but will switch to
@@ -459,13 +461,30 @@ class Template {
                   s.slice(attrNameEndIndex))
               : s) + marker;
     }
-
+    return {
+      // We don't technically need to close the SVG tag since the parser
+      // will handle it for us, but the SSR parser doesn't like that
+      html: html + strings[l] + (type === SVG_RESULT ? '</svg>' : ''),
+      attrNames
+    };
+  }
     // TODO (justinfagnani): if regex is not textRegex log a warning for a
     // malformed template in dev mode.
 
-    // Note, we don't add '</svg>' for SVG result types because the parser
-    // will close the <svg> tag for us.
-    this._element.innerHTML = html + this._strings[l];
+  _element!: HTMLTemplateElement;
+  _parts: Array<TemplatePart> = [];
+
+  constructor({strings, _$litType$: type}: TemplateResult) {
+    let node: Node | null;
+    let nodeIndex = 0;
+    let bindingIndex = 0;
+    let attrNameIndex = 0;
+    const l = strings.length - 1;
+    const {html, attrNames} = Template.getHtml(strings, type);
+
+    walker.currentNode = (this._element = d.createElement('template')).content;
+
+    this._element.innerHTML = html;
 
     if (type === SVG_RESULT) {
       const content = this._element.content;
@@ -564,7 +583,7 @@ class Template {
  * An updateable instance of a Template. Holds references to the Parts used to
  * update the template instance.
  */
-class TemplateInstance {
+export class TemplateInstance {
   _template: Template;
   _parts: Array<Part | undefined> = [];
 
@@ -671,13 +690,17 @@ export type Part =
 export class NodePart {
   readonly type = NODE_PART;
   _value: unknown;
-  protected _directive?: Directive;
+  _directive?: Directive;
 
   constructor(
     private _startNode: ChildNode,
     private _endNode: ChildNode | null,
     public options: RenderOptions | undefined
   ) {}
+
+  _setEndNode(node: ChildNode | null) {
+    this._endNode = node;
+  }
 
   _setValue(value: unknown): void {
     // TODO (justinfagnani): when setting a non-directive over a directive,
@@ -717,7 +740,7 @@ export class NodePart {
     // TODO (justinfagnani): To support nested directives, we'd need to
     // resolve the directive result's values. We may want to offer another
     // way of composing directives.
-    this._setValue(this._directive.update(this, value.values));
+    this._setValue(this._directive.resolve(this, value.values));
   }
 
   private _commitNode(value: Node): void {
@@ -750,11 +773,8 @@ export class NodePart {
   }
 
   private _commitTemplateResult(result: TemplateResult): void {
-    const {strings, values} = result;
-    let template = templateCache.get(strings);
-    if (template === undefined) {
-      templateCache.set(strings, (template = new Template(result)));
-    }
+    const {values} = result;
+    const template = templateFactory(result);
     if (
       this._value != null &&
       (this._value as TemplateInstance)._template === template
@@ -875,7 +895,7 @@ export class AttributePart {
    * @param value the raw input value to normalize
    * @param _i the index in the values array this value was read from
    */
-  private _resolveValue(value: unknown, i: number) {
+  _resolveDirective(value: unknown, i: number) {
     const directiveCtor = (value as DirectiveResult)?._$litDirective$;
     if (directiveCtor !== undefined) {
       // TODO (justinfagnani): Initialize array to the correct value,
@@ -889,13 +909,14 @@ export class AttributePart {
       // TODO (justinfagnani): To support nested directives, we'd need to
       // resolve the directive result's values. We may want to offer another
       // way of composing directives.
-      value = directive.update(this, (value as DirectiveResult).values);
+      value = directive.resolve(this, (value as DirectiveResult).values);
     }
-    return value ?? '';
+    return value;
   }
 
   /**
-   * Sets the value of this part.
+   * Resolves the final value of the attribute from possibly multiple values
+   * and static strings.
    *
    * If this part is single-valued, `this._strings` will be undefined, and the
    * method will be called with a single value argument. If this part is
@@ -911,23 +932,18 @@ export class AttributePart {
    * @param from the index to start reading values from. `undefined` for
    *   single-valued parts
    */
-  _setValue(value: unknown): void;
-  _setValue(value: Array<unknown>, from: number): void;
-  _setValue(value: unknown | Array<unknown>, from?: number) {
+  _resolveValue(value: unknown | Array<unknown>, from?: number): unknown {
     const strings = this.strings;
 
     if (strings === undefined) {
       // Single-value binding case
-      const v = this._resolveValue(value, 0);
+      const v = this._resolveDirective(value, 0);
       // Only dirty-check primitives and `nothing`:
       // `(isPrimitive(v) || v === nothing)` limits the clause to primitives and
       // `nothing`. `v === this._value` is the dirty-check.
-      if (
-        !((isPrimitive(v) || v === nothing) && v === this._value) &&
-        v !== noChange
-      ) {
-        this._commitValue((this._value = v));
-      }
+      return (((isPrimitive(v) || v === nothing) && v === this._value) || 
+              v === noChange) ?
+        noChange : (this._value = v);
     } else {
       // Interpolation case
       let attributeValue = strings[0];
@@ -941,7 +957,7 @@ export class AttributePart {
 
       let i, v;
       for (i = 0; i < strings.length - 1; i++) {
-        v = this._resolveValue((value as Array<unknown>)[from! + i], i);
+        v = this._resolveDirective((value as Array<unknown>)[from! + i], i);
         if (v === noChange) {
           // If the user-provided value is `noChange`, use the previous value
           v = (this._value as Array<unknown>)[i];
@@ -956,23 +972,38 @@ export class AttributePart {
           (this._value as Array<unknown>)[i] = v;
         }
         attributeValue +=
-          (typeof v === 'string' ? v : String(v)) + strings[i + 1];
+          (typeof v === 'string' ? v : String(v ?? '')) + strings[i + 1];
       }
-      if (change) {
-        this._commitValue(remove ? nothing : attributeValue);
-      }
+      return change ? (remove ? nothing : attributeValue) : noChange;
     }
   }
 
   /**
-   * Writes the value to the DOM. An override point for PropertyPart and
-   * BooleanAttributePart.
+   * Sets the value of this part by resolving the value from possibly multiple
+   * values and static strings and committing it to the DOM.
+   *
+   * This method is overloaded this way to eliminate short-lived array slices
+   * of the template instance values, and allow a fast-path for single-valued
+   * parts.
+   *
+   * @param value The part value, or an array of values for multi-valued parts
+   * @param from the index to start reading values from. `undefined` for
+   *   single-valued parts
    */
+  _setValue(value: unknown): void;
+  _setValue(value: Array<unknown>, from: number): void;
+  _setValue(value: unknown | Array<unknown>, from?: number) {
+    const resolvedValue = this._resolveValue(value, from);
+    if (resolvedValue !== noChange) {
+      this._commitValue(resolvedValue);
+    }
+  }
+
   _commitValue(value: unknown) {
     if (value === nothing) {
       this.element.removeAttribute(this.name);
     } else {
-      this.element.setAttribute(this.name, value as string);
+      this.element.setAttribute(this.name, (value ?? '') as string);
     }
   }
 }
@@ -1021,8 +1052,13 @@ export class EventPart extends AttributePart {
     this._eventContext = args[3]?.eventContext;
   }
 
+  // EventPart does not use the base _setValue/_resolveValue implementation
+  // since the dirty checking is more complex
   _setValue(newListener: unknown) {
-    newListener ??= nothing;
+    newListener = this._resolveDirective(newListener, 0) ?? nothing;
+    if (newListener === noChange) {
+      return;
+    }
     const oldListener = this._value;
 
     // If the new value is nothing or any options change we have to remove the
