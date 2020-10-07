@@ -20,16 +20,16 @@ if (DEV_MODE) {
 
 // Added to an attribute name to mark the attribute as bound so we can find
 // it easily.
-export const boundAttributeSuffix = '$lit$';
+const boundAttributeSuffix = '$lit$';
 
 // This marker is used in many syntactic positions in HTML, so it must be
 // a valid element name and attribute name. We don't support dynamic names (yet)
 // but this at least ensures that the parse tree is closer to the template
 // intention.
-export const marker = `lit$${String(Math.random()).slice(9)}$`;
+const marker = `lit$${String(Math.random()).slice(9)}$`;
 
 // String used to tell if a comment is a marker comment
-export const markerMatch = '?' + marker;
+const markerMatch = '?' + marker;
 
 // Text used to insert a comment marker node. We use processing instruction
 // syntax because it's slightly smaller, but parses as a comment node.
@@ -42,10 +42,10 @@ const createMarker = (v = '') => d.createComment(v);
 
 // https://tc39.github.io/ecma262/#sec-typeof-operator
 type Primitive = null | undefined | boolean | number | string | symbol | bigint;
-export const isPrimitive = (value: unknown): value is Primitive =>
+const isPrimitive = (value: unknown): value is Primitive =>
   value === null || (typeof value != 'object' && typeof value != 'function');
 const isArray = Array.isArray;
-export const isIterable = (value: unknown): value is Iterable<unknown> =>
+const isIterable = (value: unknown): value is Iterable<unknown> =>
   isArray(value) ||
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   (value && typeof (value as any)[Symbol.iterator] === 'function');
@@ -128,8 +128,8 @@ const doubleQuoteAttrEndRegex = /"/g;
 const rawTextElement = /^(?:script|style|textarea)$/i;
 
 /** TemplateResult types */
-export const HTML_RESULT = 1;
-export const SVG_RESULT = 2;
+const HTML_RESULT = 1;
+const SVG_RESULT = 2;
 
 /** TemplatePart types */
 // TODO (justinfagnani): since these are exported, consider shorter names,
@@ -202,7 +202,7 @@ export const nothing = {};
  */
 const templateCache = new Map<TemplateStringsArray, Template>();
 
-export const templateFactory = (result: TemplateResult) => {
+const templateFactory = (result: TemplateResult) => {
   const {strings} = result;
   let template = templateCache.get(strings);
   if (template === undefined) {
@@ -248,6 +248,7 @@ export type DirectiveParameters<C extends DirectiveClass> = Parameters<
  * A generated directive function doesn't evaluate the directive, but just
  * returns a DirectiveResult object that captures the arguments.
  */
+/** @internal */
 export type DirectiveResult<C extends DirectiveClass = DirectiveClass> = {
   _$litDirective$: C;
   values: DirectiveParameters<C>;
@@ -332,146 +333,148 @@ export abstract class Directive {
   }
 }
 
-export class Template {
-  static getHtml(strings: TemplateStringsArray, type: ResultType) {
-    // Insert makers into the template HTML to represent the position of
-    // bindings. The following code scans the template strings to determine the
-    // syntactic position of the bindings. They can be in text position, where
-    // we insert an HTML comment, attribute value position, where we insert a
-    // sentinel string and re-write the attribute name, or inside a tag where
-    // we insert the sentinel string.
-    const l = strings.length - 1;
-    const attrNames: Array<string> = [];
-    let html = type === SVG_RESULT ? '<svg>' : '';
+const getTemplateHtml = (strings: TemplateStringsArray, type: ResultType) => {
+  // Insert makers into the template HTML to represent the position of
+  // bindings. The following code scans the template strings to determine the
+  // syntactic position of the bindings. They can be in text position, where
+  // we insert an HTML comment, attribute value position, where we insert a
+  // sentinel string and re-write the attribute name, or inside a tag where
+  // we insert the sentinel string.
+  const l = strings.length - 1;
+  const attrNames: Array<string> = [];
+  let html = type === SVG_RESULT ? '<svg>' : '';
 
-    // When we're inside a raw text tag (not it's text content), the regex
-    // will still be tagRegex so we can find attributes, but will switch to
-    // this regex when the tag ends.
-    let rawTextEndRegex: RegExp | undefined;
+  // When we're inside a raw text tag (not it's text content), the regex
+  // will still be tagRegex so we can find attributes, but will switch to
+  // this regex when the tag ends.
+  let rawTextEndRegex: RegExp | undefined;
 
-    // The current parsing state, represented as a reference to one of the
-    // regexes
-    let regex = textEndRegex;
+  // The current parsing state, represented as a reference to one of the
+  // regexes
+  let regex = textEndRegex;
 
-    for (let i = 0; i < l; i++) {
-      const s = strings[i];
-      // The index of the end of the last attribute name. When this is
-      // positive at end of a string, it means we're in an attribute value
-      // position and need to rewrite the attribute name.
-      let attrNameEndIndex = -1;
-      let attrName: string | undefined;
-      let lastIndex = 0;
-      let match: RegExpExecArray | null;
+  for (let i = 0; i < l; i++) {
+    const s = strings[i];
+    // The index of the end of the last attribute name. When this is
+    // positive at end of a string, it means we're in an attribute value
+    // position and need to rewrite the attribute name.
+    let attrNameEndIndex = -1;
+    let attrName: string | undefined;
+    let lastIndex = 0;
+    let match: RegExpExecArray | null;
 
-      // The conditions in this loop handle the current parse state, and the
-      // assignments to the `regex` variable are the state transitions.
-      while (lastIndex < s.length) {
-        // Make sure we start searching from where we previously left off
-        regex.lastIndex = lastIndex;
-        match = regex.exec(s);
-        if (match === null) {
-          // If the current regex doesn't match we've come to a binding inside
-          // that state and must break and insert a marker
-          if (regex === tagEndRegex) {
-            // When tagEndRegex doesn't match we must have a binding in
-            // attribute-name position, since tagEndRegex does match static
-            // attribute names and end-of-tag. We need to clear
-            // attrNameEndIndex which may have been set by a previous
-            // tagEndRegex match.
-            attrNameEndIndex = -1;
-          }
-          break;
+    // The conditions in this loop handle the current parse state, and the
+    // assignments to the `regex` variable are the state transitions.
+    while (lastIndex < s.length) {
+      // Make sure we start searching from where we previously left off
+      regex.lastIndex = lastIndex;
+      match = regex.exec(s);
+      if (match === null) {
+        // If the current regex doesn't match we've come to a binding inside
+        // that state and must break and insert a marker
+        if (regex === tagEndRegex) {
+          // When tagEndRegex doesn't match we must have a binding in
+          // attribute-name position, since tagEndRegex does match static
+          // attribute names and end-of-tag. We need to clear
+          // attrNameEndIndex which may have been set by a previous
+          // tagEndRegex match.
+          attrNameEndIndex = -1;
         }
-        lastIndex = regex.lastIndex;
-        if (regex === textEndRegex) {
-          if (match[COMMENT_START] === '!--') {
-            regex = commentEndRegex;
-          } else if (match[COMMENT_START] !== undefined) {
-            // We started a weird comment, like </{
-            regex = comment2EndRegex;
-          } else if (match[TAG_NAME] !== undefined) {
-            if (rawTextElement.test(match[TAG_NAME])) {
-              // Record if we encounter a raw-text element. We'll switch to
-              // this regex at the end of the tag
-              rawTextEndRegex = new RegExp(`</${match[TAG_NAME]}`, 'g');
-            }
-            regex = tagEndRegex;
-          } else if (match[DYNAMIC_TAG_NAME] !== undefined) {
-            // dynamic tag name
-            regex = tagEndRegex;
+        break;
+      }
+      lastIndex = regex.lastIndex;
+      if (regex === textEndRegex) {
+        if (match[COMMENT_START] === '!--') {
+          regex = commentEndRegex;
+        } else if (match[COMMENT_START] !== undefined) {
+          // We started a weird comment, like </{
+          regex = comment2EndRegex;
+        } else if (match[TAG_NAME] !== undefined) {
+          if (rawTextElement.test(match[TAG_NAME])) {
+            // Record if we encounter a raw-text element. We'll switch to
+            // this regex at the end of the tag
+            rawTextEndRegex = new RegExp(`</${match[TAG_NAME]}`, 'g');
           }
-        } else if (regex === tagEndRegex) {
-          if (match[ENTIRE_MATCH] === '>') {
-            // End of a tag. If we had started a raw-text element, use that
-            // regex
-            regex = rawTextEndRegex ?? textEndRegex;
-            // We may be ending an unquoted attribute value, so make sure we
-            // clear any pending attrNameEndIndex
-            attrNameEndIndex = -1;
-          } else {
-            attrNameEndIndex =
-              regex.lastIndex - match[SPACES_AND_EQUALS].length;
-            attrName = match[ATTRIBUTE_NAME];
-            regex =
-              match[QUOTE_CHAR] === undefined
-                ? tagEndRegex
-                : match[QUOTE_CHAR] === '"'
-                ? doubleQuoteAttrEndRegex
-                : singleQuoteAttrEndRegex;
-          }
-        } else if (
-          regex === doubleQuoteAttrEndRegex ||
-          regex === singleQuoteAttrEndRegex
-        ) {
           regex = tagEndRegex;
-        } else if (regex === commentEndRegex || regex === comment2EndRegex) {
-          regex = textEndRegex;
+        } else if (match[DYNAMIC_TAG_NAME] !== undefined) {
+          // dynamic tag name
+          regex = tagEndRegex;
+        }
+      } else if (regex === tagEndRegex) {
+        if (match[ENTIRE_MATCH] === '>') {
+          // End of a tag. If we had started a raw-text element, use that
+          // regex
+          regex = rawTextEndRegex ?? textEndRegex;
+          // We may be ending an unquoted attribute value, so make sure we
+          // clear any pending attrNameEndIndex
+          attrNameEndIndex = -1;
         } else {
-          // Not one of the five state regexes, so it must be the dynamically
-          // created raw text regex and we're at the close of that element.
-          regex = tagEndRegex;
-          rawTextEndRegex = undefined;
+          attrNameEndIndex =
+            regex.lastIndex - match[SPACES_AND_EQUALS].length;
+          attrName = match[ATTRIBUTE_NAME];
+          regex =
+            match[QUOTE_CHAR] === undefined
+              ? tagEndRegex
+              : match[QUOTE_CHAR] === '"'
+              ? doubleQuoteAttrEndRegex
+              : singleQuoteAttrEndRegex;
         }
+      } else if (
+        regex === doubleQuoteAttrEndRegex ||
+        regex === singleQuoteAttrEndRegex
+      ) {
+        regex = tagEndRegex;
+      } else if (regex === commentEndRegex || regex === comment2EndRegex) {
+        regex = textEndRegex;
+      } else {
+        // Not one of the five state regexes, so it must be the dynamically
+        // created raw text regex and we're at the close of that element.
+        regex = tagEndRegex;
+        rawTextEndRegex = undefined;
       }
-
-      if (DEV_MODE) {
-        // If we have a attrNameEndIndex, which indicates that we should
-        // rewrite the attribute name, assert that we're in a valid attribute
-        // position - either in a tag, or a quoted attribute value.
-        console.assert(
-          attrNameEndIndex === -1 ||
-            regex === tagEndRegex ||
-            regex === singleQuoteAttrEndRegex ||
-            regex === doubleQuoteAttrEndRegex,
-          'unexpected parse state B'
-        );
-      }
-
-      // If we're in text position, and not in a raw text element
-      // (regex === textEndRegex), we insert a comment marker. Otherwise, we
-      // insert a plain maker. If we have a attrNameEndIndex, it means we need
-      // to rewrite the attribute name to add a bound attribute suffix.
-      html +=
-        regex === textEndRegex
-          ? s + nodeMarker
-          : (attrNameEndIndex !== -1
-              ? (attrNames.push(attrName!),
-                s.slice(0, attrNameEndIndex) +
-                  boundAttributeSuffix +
-                  s.slice(attrNameEndIndex))
-              : s) + marker;
     }
-    return {
-      // We don't technically need to close the SVG tag since the parser
-      // will handle it for us, but the SSR parser doesn't like that
-      html: html + strings[l] + (type === SVG_RESULT ? '</svg>' : ''),
-      attrNames
-    };
-  }
-    // TODO (justinfagnani): if regex is not textRegex log a warning for a
-    // malformed template in dev mode.
 
+    if (DEV_MODE) {
+      // If we have a attrNameEndIndex, which indicates that we should
+      // rewrite the attribute name, assert that we're in a valid attribute
+      // position - either in a tag, or a quoted attribute value.
+      console.assert(
+        attrNameEndIndex === -1 ||
+          regex === tagEndRegex ||
+          regex === singleQuoteAttrEndRegex ||
+          regex === doubleQuoteAttrEndRegex,
+        'unexpected parse state B'
+      );
+    }
+
+    // If we're in text position, and not in a raw text element
+    // (regex === textEndRegex), we insert a comment marker. Otherwise, we
+    // insert a plain maker. If we have a attrNameEndIndex, it means we need
+    // to rewrite the attribute name to add a bound attribute suffix.
+    html +=
+      regex === textEndRegex
+        ? s + nodeMarker
+        : (attrNameEndIndex !== -1
+            ? (attrNames.push(attrName!),
+              s.slice(0, attrNameEndIndex) +
+                boundAttributeSuffix +
+                s.slice(attrNameEndIndex))
+            : s) + marker;
+  }
+  // TODO (justinfagnani): if regex is not textRegex log a warning for a
+  // malformed template in dev mode.
+  return {
+    // We don't technically need to close the SVG tag since the parser
+    // will handle it for us, but the SSR parser doesn't like that
+    html: html + strings[l] + (type === SVG_RESULT ? '</svg>' : ''),
+    attrNames
+  };
+}
+
+class Template {
+  /** @internal */
   _element!: HTMLTemplateElement;
+  /** @internal */
   _parts: Array<TemplatePart> = [];
 
   constructor({strings, _$litType$: type}: TemplateResult) {
@@ -480,7 +483,7 @@ export class Template {
     let bindingIndex = 0;
     let attrNameIndex = 0;
     const l = strings.length - 1;
-    const {html, attrNames} = Template.getHtml(strings, type);
+    const {html, attrNames} = getTemplateHtml(strings, type);
 
     walker.currentNode = (this._element = d.createElement('template')).content;
 
@@ -583,8 +586,10 @@ export class Template {
  * An updateable instance of a Template. Holds references to the Parts used to
  * update the template instance.
  */
-export class TemplateInstance {
+class TemplateInstance {
+  /** @internal */
   _template: Template;
+  /** @internal */
   _parts: Array<Part | undefined> = [];
 
   constructor(template: Template) {
@@ -654,7 +659,9 @@ type AttributeTemplatePart = {
   readonly _type: typeof ATTRIBUTE_PART;
   readonly _index: number;
   readonly _name: string;
+  /** @internal */
   readonly _constructor: typeof AttributePart;
+  /** @internal */
   readonly _strings: ReadonlyArray<string>;
 };
 type NodeTemplatePart = {
@@ -690,6 +697,7 @@ export type Part =
 export class NodePart {
   readonly type = NODE_PART;
   _value: unknown;
+  /** @internal */
   _directive?: Directive;
 
   constructor(
@@ -698,6 +706,7 @@ export class NodePart {
     public options: RenderOptions | undefined
   ) {}
 
+  /** @internal */
   _setEndNode(node: ChildNode | null) {
     this._endNode = node;
   }
@@ -894,6 +903,8 @@ export class AttributePart {
    *
    * @param value the raw input value to normalize
    * @param _i the index in the values array this value was read from
+   * 
+   * @internal
    */
   _resolveDirective(value: unknown, i: number) {
     const directiveCtor = (value as DirectiveResult)?._$litDirective$;
@@ -931,6 +942,8 @@ export class AttributePart {
    * @param value The part value, or an array of values for multi-valued parts
    * @param from the index to start reading values from. `undefined` for
    *   single-valued parts
+   * 
+   * @internal
    */
   _resolveValue(value: unknown | Array<unknown>, from?: number): unknown {
     const strings = this.strings;
@@ -989,6 +1002,8 @@ export class AttributePart {
    * @param value The part value, or an array of values for multi-valued parts
    * @param from the index to start reading values from. `undefined` for
    *   single-valued parts
+   * 
+   * @internal
    */
   _setValue(value: unknown): void;
   _setValue(value: Array<unknown>, from: number): void;
@@ -999,6 +1014,7 @@ export class AttributePart {
     }
   }
 
+  /** @internal */
   _commitValue(value: unknown) {
     if (value === nothing) {
       this.element.removeAttribute(this.name);
@@ -1054,6 +1070,7 @@ export class EventPart extends AttributePart {
 
   // EventPart does not use the base _setValue/_resolveValue implementation
   // since the dirty checking is more complex
+  /** @internal */
   _setValue(newListener: unknown) {
     newListener = this._resolveDirective(newListener, 0) ?? nothing;
     if (newListener === noChange) {
@@ -1108,6 +1125,21 @@ export class EventPart extends AttributePart {
     }
   }
 }
+
+export const $litPrivate = {
+  // Used in lit-ssr (temporarily not-renamed)
+  boundAttributeSuffix: boundAttributeSuffix,
+  marker: marker,
+  markerMatch: markerMatch,
+  HTML_RESULT: HTML_RESULT,
+  getTemplateHtml: getTemplateHtml,
+  // Used in hydrate
+  _templateFactory: templateFactory,
+  _Template: Template,
+  _TemplateInstance: TemplateInstance,
+  _isPrimitive: isPrimitive,
+  _isIterable: isIterable,
+};
 
 // IMPORTANT: do not change the property name or the assignment expression.
 // This line will be used in regexes to search for lit-html usage.

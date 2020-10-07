@@ -47,7 +47,8 @@ const reservedProperties = [
   "_value",
   "_setValue",
 
-  // TODO(kschaaf) TBD: lit-ssr required "private" fields
+  // TODO(kschaaf) TBD: lit-ssr required "private" fields (can be in
+  // crossPackagePropertyMangles once lit-ssr uses the rollup config)
   "_resolveValue", // from AttributePart
 ];
 
@@ -59,16 +60,6 @@ const crossPackagePropertyMangles = {
   _createElement: "A",
   _endNode: "B",
   _startNode: "C",
-
-  // TODO(kschaaf) TBD: hydrate required "private" fields
-  _parts: "E", // from TemplateInstance, Template
-  _directive: "F", // from NodePart
-  _setEndNode: "G", // from NodePart
-  _template: "H", // from TemplateInstance
-  _constructor: "I", // from AttributePartInfo
-  _name: "J", // from AttributePartInfo
-  _strings: "K", // from AttributePartInfo
-  _commitValue: "L", // from AttributePart
 }
 
 export function litRollupConfig({ entryPoints, external = [] } = options) {
@@ -133,7 +124,9 @@ export function litRollupConfig({ entryPoints, external = [] } = options) {
       inline_script: false,
     },
     nameCache,
+    module: true,
     mangle: {
+      toplevel: true,
       properties: {
         regex: /^_/,
         reserved: reservedProperties,

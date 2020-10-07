@@ -14,20 +14,29 @@
  * http://polymer.github.io/PATENTS.txt
  */
 
+// Type-only imports
 import {
-  Template,
   TemplateResult,
+  DirectiveResult,
+} from 'lit-html';
+
+import {
   nothing,
   noChange,
-  marker,
-  markerMatch,
-  boundAttributeSuffix,
   Directive,
-  DirectiveResult,
   Part,
   NODE_PART,
   AttributePart,
+  $litPrivate,
 } from 'lit-html';
+
+const {
+  getTemplateHtml,
+  marker: marker,
+  markerMatch: markerMatch,
+  boundAttributeSuffix: boundAttributeSuffix,
+} = $litPrivate;
+
 import { digestForTemplateResult } from 'lit-html/hydrate.js';
 
 import {ElementRenderer} from './element-renderer.js';
@@ -145,7 +154,7 @@ const getTemplate = (result: TemplateResult) => {
   if (template !== undefined) {
     return template;
   }
-  const {html, attrNames} = Template.getHtml(result.strings, result._$litType$);
+  const {html, attrNames} = getTemplateHtml(result.strings, result._$litType$);
   const ast = parseFragment(html, {
     sourceCodeLocationInfo: true,
   }) as DefaultTreeDocumentFragment;

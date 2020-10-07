@@ -12,22 +12,32 @@
  * http://polymer.github.io/PATENTS.txt
  */
 
+// Type-only imports
+import {
+  TemplateResult,
+  DirectiveResult,
+} from './lit-html.js';
+
 import {
   nothing,
   noChange,
   EventPart,
   NodePart,
   PropertyPart,
-  DirectiveResult,
   NodePartInfo,
-  templateFactory,
-  TemplateResult,
-  TemplateInstance,
-  isIterable,
-  isPrimitive,
   RenderOptions,
   ATTRIBUTE_PART,
+  $litPrivate,
 } from './lit-html.js';
+
+const {
+  _templateFactory,
+  _TemplateInstance: TemplateInstance,
+  _isIterable,
+  _isPrimitive,
+} = $litPrivate;
+
+type TemplateInstance = InstanceType<typeof TemplateInstance>;
 
 /**
  * Information needed to rehydrate a single TemplateResult.
@@ -216,18 +226,18 @@ const openNodePart =
       const directive = value != null ? (value as DirectiveResult)._$litDirective$ : undefined;
       if (directive !== undefined) {
         part._directive = new directive(part as NodePartInfo);
-        value = part._directive.update(part, (value as DirectiveResult).values);
+        value = part._directive!.update(part, (value as DirectiveResult).values);
       }
       if (value === noChange) {
         stack.push({part, type: 'leaf'});
-      } else if (isPrimitive(value)) {
+      } else if (_isPrimitive(value)) {
         stack.push({part, type: 'leaf'});
         part._value = value;
       } else if ((value as TemplateResult)._$litType$ !== undefined) {
         // Check for a template result digest
         const markerWithDigest = `lit-part ${digestForTemplateResult(value as TemplateResult)}`;
         if (marker.data === markerWithDigest) {
-          const template = templateFactory(value as TemplateResult);
+          const template = _templateFactory(value as TemplateResult);
           const instance = new TemplateInstance(template);
           stack.push({
             type: 'template-instance',
@@ -245,7 +255,7 @@ const openNodePart =
           // need to stop hydrating this subtree? Clear it? Add tests.
           throw new Error('unimplemented');
         }
-      } else if (isIterable(value)) {
+      } else if (_isIterable(value)) {
         // currentNodePart.value will contain an array of NodeParts
         stack.push({
           part: part,
